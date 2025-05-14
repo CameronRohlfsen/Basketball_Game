@@ -133,17 +133,25 @@ void draw_ball(const Ball *ball, int player_id) {
 }
 
 // Handle ball motion and scoring
-void handle_ball(Ball *ball, Player *player, Hoop *hoop) {
+void handle_ball(Ball *ball, Player *player, Hoop *hoop, GameState *game) {
     if (!ball->in_motion) return;
 
     ball->x += ball->dx;
     ball->y += ball->dy;
     ball->dy = -10;
 
+    // Check if the ball scores
     if (ball->y <= hoop->y + hoop->height && ball->y >= hoop->y &&
         ball->x >= hoop->x - hoop->width / 2 && ball->x <= hoop->x + hoop->width / 2) {
+
         player->score++;
         player->shots_made++;
+
+        // Shrink hoop if score is less than or equal to 8
+        if (player->score <= 8 && hoop->width > 20) {
+            hoop->width -= 5;
+        }
+
         gfx_color(0, 255, 0);
         gfx_text(350, 200, "NICE SHOT!");
         gfx_flush();
@@ -152,8 +160,14 @@ void handle_ball(Ball *ball, Player *player, Hoop *hoop) {
         ball->in_motion = 0;
         ball->x = player->x;
         ball->y = player->y - 10;
-    } else if (ball->y <= 0) {
-        player->shots_attempted++;  // count the miss if not already
+
+        // End game if score is 15
+        if (player->score >= 15) {
+            game->running = 0;
+        }
+
+    } else if (ball->y <= 0) {  // Missed
+        player->shots_attempted++;
         gfx_color(255, 0, 0);
         gfx_text(350, 200, "MISS!");
         gfx_flush();
@@ -162,7 +176,7 @@ void handle_ball(Ball *ball, Player *player, Hoop *hoop) {
         ball->in_motion = 0;
         ball->x = player->x;
         ball->y = player->y - 10;
-    } else if (ball->y > 600) {
+    } else if (ball->y > 600) {  // Ball fell off screen
         ball->in_motion = 0;
         ball->x = player->x;
         ball->y = player->y - 10;
@@ -183,9 +197,16 @@ void run_game(Player *p1, Player *p2, Ball *b1, Ball *b2, Hoop *h1, Hoop *h2, Ga
     struct timeval start, current;
     int hoop_speed, ball_speed;
 
-    if (difficulty == 1) { hoop_speed = 2; ball_speed = -15; }
-    else if (difficulty == 2) { hoop_speed = 5; ball_speed = -12; }
-    else { hoop_speed = 8; ball_speed = -10; }
+    if (difficulty == 1) {
+        hoop_speed = 2;
+        ball_speed = -15;
+    } else if (difficulty == 2) {
+        hoop_speed = 5;
+        ball_speed = -12;
+    } else {
+        hoop_speed = 8;
+        ball_speed = -10;
+    }
 
     h1->dx = h2->dx = hoop_speed;
     gettimeofday(&start, NULL);
@@ -234,61 +255,39 @@ void run_game(Player *p1, Player *p2, Ball *b1, Ball *b2, Hoop *h1, Hoop *h2, Ga
         if (gfx_event_waiting()) {
             input = gfx_wait();
             if (input == 'q') g->running = 0;
-            else if (input == 'w') { b1->in_motion = 1; b1->dy = ball_speed; p1->shots_attempted++; }
-            else if (input == 'i' && p2->score >= 0) { b2->in_motion = 1; b2->dy = ball_speed; p2->shots_attempted++; }
-            else if (input == 'a') { p1->x -= 10; b1->x = p1->x; }
-            else if (input == 'd') { p1->x += 10; b1->x = p1->x; }
-            else if (input == 'j' && p2->score >= 0) { p2->x -= 10; b2->x = p2->x; }
-            else if (input == 'l' && p2->score >= 0) { p2->x += 10; b2->x = p2->x; }
+            else if (input == 'w' && !b1->in_motion) {
+                b1->in_motion = 1;
+                b1->dy = ball_speed;
+                p1->shots_attempted++;
+            }
+            else if (input == 'i' && !b2->in_motion && p2->score >= 0) {
+                b2->in_motion = 1;
+                b2->dy = ball_speed;
+                p2->shots_attempted++;
+            }
+            else if (input == 'a') {
+                p1->x -= 10;
+                b1->x = p1->x;
+            }
+            else if (input == 'd') {
+                p1->x += 10;
+                b1->x = p1->x;
+            }
+            else if (input == 'j' && p2->score >= 0) {
+                p2->x -= 10;
+                b2->x = p2->x;
+            }
+            else if (input == 'l' && p2->score >= 0) {
+                p2->x += 10;
+                b2->x = p2->x;
+            }
         }
 
         // Game updates
         move_hoop(h1);
         if (p2->score >= 0) move_hoop(h2);
-        handle_ball(b1, p1, h1);
-        if (p2->score >= 0) handle_ball(b2, p2, h2);
-
-        // Feedback for Player 1
-        if (b1->in_motion && b1->y <= h1->y && fabs(b1->x - h1->x) < h1->width / 2) {
-            p1->shots_made++;
-            p1->score++;
-            gfx_color(0, 255, 0);
-            gfx_text(350, 200, "NICE SHOT!");
-            gfx_flush();
-            usleep(1000000);
-            b1->in_motion = 0;
-            b1->x = p1->x;
-            b1->y = p1->y - 10;
-        } else if (b1->in_motion && b1->y <= 0) {
-            gfx_color(255, 0, 0);
-            gfx_text(350, 200, "MISS!");
-            gfx_flush();
-            usleep(1000000);
-            b1->in_motion = 0;
-            b1->x = p1->x;
-            b1->y = p1->y - 10;
-        }
-
-        // Feedback for Player 2
-        if (b2->in_motion && b2->y <= h2->y && fabs(b2->x - h2->x) < h2->width / 2) {
-            p2->shots_made++;
-            p2->score++;
-            gfx_color(0, 255, 0);
-            gfx_text(350, 200, "NICE SHOT!");
-            gfx_flush();
-            usleep(1000000);
-            b2->in_motion = 0;
-            b2->x = p2->x;
-            b2->y = p2->y - 10;
-        } else if (b2->in_motion && b2->y <= 0) {
-            gfx_color(255, 0, 0);
-            gfx_text(350, 200, "MISS!");
-            gfx_flush();
-            usleep(1000000);
-            b2->in_motion = 0;
-            b2->x = p2->x;
-            b2->y = p2->y - 10;
-        }
+        handle_ball(b1, p1, h1, g);
+        if (p2->score >= 0) handle_ball(b2, p2, h2, g);
 
         gfx_flush();
     }
