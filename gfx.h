@@ -43,3 +43,5 @@ void gfx_circle( int xc, int yc, int r );
 
 // Display a string at (x,y) 
 void gfx_text( int x, int y , const char *text );
+
+#endif
