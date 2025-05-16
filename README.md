@@ -1,4 +1,4 @@
-# Basketball_Game
+# Basketball Game
 The goal of the game is to score as many points as possible by shooting a basketball into the hoop. The game is played between two players (multiplayer) or a single player against an empty hoop (single player mode). 
 
 - The game is won when the first player reaches a score of 15 points.
